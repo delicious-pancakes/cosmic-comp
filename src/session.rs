@@ -15,7 +15,7 @@ use std::{
         net::UnixStream,
     },
 };
-use tracing::{error, warn};
+use tracing::{debug, error, warn};
 
 use crate::state::{Common, State};
 
@@ -111,7 +111,7 @@ pub fn setup_socket(handle: LoopHandle<State>, common: &Common) -> Result<()> {
                                 stream.buffer = vec![0; stream.size as usize];
                             },
                             Err(err) => {
-                                warn!(?err, "Error reading from session socket");
+                                debug!(?err, "Session socket closed (expected after env handshake)");
                                 return Ok(PostAction::Remove);
                             }
                         }

@@ -22,7 +22,12 @@ use std::{
 use tracing::{error, info, warn};
 use wayland::protocols::overlap_notify::OverlapNotifyState;
 
+use crate::shell::Shell;
 use crate::wayland::handlers::compositor::client_compositor_state;
+use smithay::wayland::{
+    compositor::with_states,
+    shell::wlr_layer::LayerSurfaceAttributes,
+};
 
 use clap_lex::RawArgs;
 
@@ -310,8 +315,57 @@ fn refresh(state: &mut State) {
     }
 
     state.common.refresh();
+    recover_stale_pending_layers(state);
     state::Common::refresh_focus(state);
     OverlapNotifyState::refresh(state);
     state.common.update_x11_stacking_order();
     state.last_refresh = LastRefresh::At(Instant::now());
+}
+
+fn recover_stale_pending_layers(state: &mut State) {
+    let now = Instant::now();
+    let stale_threshold = Duration::from_secs(2);
+
+    let stale_layers: Vec<_> = {
+        let shell = state.common.shell.read();
+        shell
+            .pending_layers
+            .iter()
+            .filter(|pending| {
+                now.duration_since(pending.created_at) > stale_threshold
+                    && !with_states(pending.surface.wl_surface(), |states| {
+                        states
+                            .data_map
+                            .get::<std::sync::Mutex<LayerSurfaceAttributes>>()
+                            .unwrap()
+                            .lock()
+                            .unwrap()
+                            .initial_configure_sent
+                    })
+            })
+            .map(|pending| (pending.surface.clone(), pending.output.clone()))
+            .collect()
+    };
+
+    for (surface, output) in stale_layers {
+        warn!(
+            "Recovering stale pending layer surface: namespace={}, output={}",
+            surface.namespace(),
+            output.name()
+        );
+
+        let focus_target = {
+            let mut shell = state.common.shell.write();
+            shell.map_layer(&surface)
+        };
+
+        surface.layer_surface().send_configure();
+
+        if let Some(target) = focus_target {
+            let seat = state.common.shell.read().seats.last_active().clone();
+            Shell::set_focus(state, Some(&target), &seat, None, false);
+        }
+
+        state.backend.schedule_render(&output);
+    }
 }

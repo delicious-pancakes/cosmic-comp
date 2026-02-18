@@ -419,6 +419,7 @@ impl State {
             .map(|pending| pending.surface.clone())
         {
             if !layer_surface_check_inital_configure(&layer_surface) {
+                tracing::debug!("Initial configure for layer surface: namespace={}", layer_surface.namespace());
                 // compute initial dimensions by mapping
                 if let Some(target) = shell.map_layer(&layer_surface) {
                     let seat = shell.seats.last_active().clone();

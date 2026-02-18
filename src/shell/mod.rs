@@ -59,7 +59,7 @@ use smithay::{
     },
     xwayland::X11Surface,
 };
-use tracing::error;
+use tracing::{debug, error};
 
 use crate::{
     backend::render::animations::spring::{Spring, SpringParams},
@@ -256,6 +256,7 @@ pub struct PendingLayer {
     pub surface: LayerSurface,
     pub seat: Seat<State>,
     pub output: Output,
+    pub created_at: Instant,
 }
 
 #[derive(Debug)]
@@ -2859,6 +2860,7 @@ impl Shell {
             .position(|pending| &pending.surface == layer_surface)
             .unwrap();
         let pending = self.pending_layers.remove(pos);
+        debug!("Mapping layer surface: namespace={}, output={}", pending.surface.namespace(), pending.output.name());
 
         let wants_focus = {
             with_states(pending.surface.wl_surface(), |states| {

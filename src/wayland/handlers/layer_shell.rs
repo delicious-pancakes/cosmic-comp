@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 use crate::{shell::PendingLayer, utils::prelude::*};
+use std::time::Instant;
 use smithay::{
     delegate_layer_shell,
     desktop::{LayerSurface, PopupKind, WindowSurfaceType, layer_map_for_output},
@@ -32,10 +33,13 @@ impl WlrLayerShellHandler for State {
             .as_ref()
             .and_then(Output::from_resource)
             .unwrap_or_else(|| seat.active_output());
+        let layer = LayerSurface::new(surface, namespace.clone());
+        tracing::debug!("New layer surface: namespace={}, output={}", namespace, output.name());
         shell.pending_layers.push(PendingLayer {
-            surface: LayerSurface::new(surface, namespace),
+            surface: layer,
             output,
             seat,
+            created_at: Instant::now(),
         });
     }
 
